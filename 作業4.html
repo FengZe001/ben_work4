@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>抓取CSV資料轉陣列使用</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+
+    th,
+    td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    select {
+      width: auto;
+      margin: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="filters"></div>
+    <div class="table">
+      <table class="tt">
+      </table>
+    </div>
+    <div class="page"></div>
+  </div>
+  <script>
+    const container = document.querySelector(".container");
+    const filters = document.querySelector(".filters");
+    const tableContainer = document.querySelector(".table");
+    const page = document.querySelector(".page");
+    const table = document.querySelector("table")
+    const button = document.querySelector(".button");
+    const tr = document.querySelector(".tr");
+    let currentPage = 1;
+    const pageSize = 50;
+    const tbody = document.createElement("tbody");
+    ladData();
+    function ladData() {
+      fetch("data.csv")
+        .then((res) => {
+          return res.text();
+        })
+        .then((result) => {
+          tableshow(result.split(/\r\n/).map((d) => {
+            return d.split(",");
+          })
+          )
+          randerDOM(
+            result.split(/\r\n/).slice(1).map((d) => {
+              return d.split(",");
+            })
+          );
+        })
+        .catch();
+    }
+    function tableshow(datas) {
+      const header = document.createElement("thead");
+      header.innerHTML = `
+        <td>${datas[0][1]}</td>
+        <td>${datas[0][2]}</td>
+        <td>${datas[0][3]}</td>
+        <td>${datas[0][4]}</td>
+        <td>按鈕</td>
+        `;
+      table.append(header)
+    }
+    function randerDOM(datas) {
+      showtable()
+      let e = datas
+      const areaSelect = document.createElement("select")
+      areaSelect.id = ("areaSelect")
+      filters.appendChild(areaSelect);
+      const parkSelect = document.createElement("select")
+      parkSelect.id = ("parkSelect")
+      filters.appendChild(parkSelect);
+      const typeSelect = document.createElement("select")
+      typeSelect.id = ("typeSelect")
+      filters.appendChild(typeSelect);
+      const resetButton = document.createElement("button");
+      resetButton.textContent = "撤銷";
+      filters.appendChild(resetButton);
+      resetButton.addEventListener("click", () => {
+        areaSelect.selectedIndex = 0;
+        parkSelect.selectedIndex = 0;
+        typeSelect.selectedIndex = 0;
+        e = datas.slice(0);
+        currentPage = 1;
+        showtable(e);
+      });
+      const groupedData = datas.reduce(
+        (prev, curr) => {
+          const area = curr[1];
+          const park = curr[2];
+          const type = curr[4];
+
+          if (!prev.areaGroup[area]) {
+            prev.areaGroup[area] = [];
+          }
+          prev.areaGroup[area].push(curr);
+          if (park && park !== "undefined") {
+            if (!prev.parkGroup[park]) {
+              prev.parkGroup[park] = [];
+            }
+            prev.parkGroup[park].push(curr);
+          }
+
+          // Group by type
+          if (type && type !== "undefined") {
+            if (!prev.typeGroup[type]) {
+              prev.typeGroup[type] = [];
+            }
+            prev.typeGroup[type].push(curr);
+          }
+
+          return prev;
+        },
+        { areaGroup: {}, parkGroup: {}, typeGroup: {} }
+      );
+
+      const { areaGroup, parkGroup, typeGroup } = groupedData;
+
+
+      const areadefault = document.createElement("option");
+      areadefault.value = "";
+      areadefault.textContent = "地區";
+      areadefault.disabled = true;
+      areadefault.selected = true;
+      areaSelect.appendChild(areadefault);
+
+      Object.keys(areaGroup).forEach((area) => {
+        if (area != 'undefined') {
+          const option = document.createElement("option");
+          option.value = area;
+          option.textContent = area;
+          areaSelect.append(option);
+        }
+      })
+
+      const parkdefault = document.createElement("option");
+      parkdefault.value = "";
+      parkdefault.textContent = "公園";
+      parkdefault.disabled = true;
+      parkdefault.selected = true;
+      parkSelect.appendChild(parkdefault);
+
+      Object.keys(parkGroup).forEach((park) => {
+        if (park != 'undefined') {
+          const option = document.createElement("option");
+          option.value = park;
+          option.textContent = park;
+          parkSelect.append(option);
+        }
+      })
+
+      const typedefault = document.createElement("option");
+      typedefault.value = "";
+      typedefault.textContent = "類別";
+      typedefault.disabled = true;
+      typedefault.selected = true;
+      typeSelect.appendChild(typedefault);
+      Object.keys(typeGroup).forEach((type) => {
+        if (type != 'undefined') {
+          const option = document.createElement("option");
+          option.value = type;
+          option.textContent = type;
+          typeSelect.append(option);
+        }
+      })
+
+      const handleSelectChange = async (group, selectedValue, resetSelectors) => {
+        e = selectedValue ? group[selectedValue] || [] : datas.slice(1);
+        currentPage = 1;
+
+
+        resetSelectors.forEach(select => {
+          select.selectedIndex = 0;
+        });
+
+        await showtable(e);
+      };
+
+
+      areaSelect.addEventListener("change", async () => {
+        await handleSelectChange(areaGroup, areaSelect.value, [parkSelect, typeSelect]);
+      });
+
+      parkSelect.addEventListener("change", async () => {
+        await handleSelectChange(parkGroup, parkSelect.value, [areaSelect, typeSelect]);
+      });
+
+      typeSelect.addEventListener("change", async () => {
+        await handleSelectChange(typeGroup, typeSelect.value, [areaSelect, parkSelect]);
+      });
+
+      function showtable(e) {
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+
+        page.innerHTML = ""
+        tbody.innerHTML = "";
+        if (!e) e = datas
+        e.slice(startIndex, endIndex).forEach((roww, i) => {
+          if (roww.length >= 5) {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+          
+                <td><a href="https://www.google.com.tw/maps/search/${roww[7]},${roww[6]}">${roww[1]} </a></td>
+                <td>${roww[2]}</td>
+                <td>${roww[3]}</td>
+                <td>${roww[4]}</td>
+                <td> <button onclick="window.open('https://www.google.com.tw/maps/search/${roww[7]},${roww[6]}')">
+             按鈕
+        </button></td>
+            `;
+            tbody.append(row);
+            table.append(tbody);
+          }
+
+        });
+        pageb(e)
+
+      }
+      function pageb(e) {
+        for (let i = 1; i <= Math.ceil(e.length / pageSize); i++) {
+          console.log(e);
+
+          const btn = document.createElement("button");
+          btn.innerText = i;
+          btn.addEventListener("click", () => {
+            currentPage = i;
+            filters.innerHTML = "";
+            tbody.innerHTML = "";
+            page.innerHTML = ""
+            randerDOM(e);
+          });
+          page.append(btn);
+        }
+      }
+    }
+  </script>
+
+
+</body>
+
+</html>
