@@ -123,8 +123,6 @@
             }
             prev.parkGroup[park].push(curr);
           }
-
-          // Group by type
           if (type && type !== "undefined") {
             if (!prev.typeGroup[type]) {
               prev.typeGroup[type] = [];
@@ -225,7 +223,7 @@
 
             row.innerHTML = `
           
-                <td><a href="https://www.google.com.tw/maps/search/${roww[7]},${roww[6]}">${roww[1]} </a></td>
+                <td>${roww[1]}</td>
                 <td>${roww[2]}</td>
                 <td>${roww[3]}</td>
                 <td>${roww[4]}</td>
